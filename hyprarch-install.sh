@@ -231,6 +231,14 @@ mount_filesystems() {
     print_success "All filesystems mounted"
 }
 
+# Initialize pacman keyring
+init_keyring() {
+    print_step "Initializing pacman keyring..."
+    pacman-key --init
+    pacman-key --populate archlinux
+    print_success "Keyring initialized"
+}
+
 # Install base system
 install_base() {
     local cpu_type="$1"
@@ -450,6 +458,9 @@ main() {
     format_filesystems "$EFI_PARTITION"
     create_subvolumes
     mount_filesystems "$EFI_PARTITION"
+
+    # Initialize pacman keyring before installing
+    init_keyring
 
     # Install system
     install_base "$CPU_TYPE"
