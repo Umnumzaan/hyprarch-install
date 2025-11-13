@@ -345,7 +345,6 @@ EOFLIMINE
 # Deploy Limine UEFI files
 mkdir -p /boot/EFI/BOOT
 cp /usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/
-cp /usr/share/limine/limine-uefi.bin /boot/
 
 # Generate initramfs
 mkinitcpio -P
