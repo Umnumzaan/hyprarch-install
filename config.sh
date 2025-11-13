@@ -285,10 +285,10 @@ install_aur_packages() {
 configure_snapper() {
     print_step "Configuring snapper..."
 
-    # Temporarily disable limine-snapper-sync plugin
+    # Temporarily move limine-snapper-sync plugin out of plugins directory
     if [ -f /usr/lib/snapper/plugins/10-limine-snapper-sync ]; then
-        print_info "Temporarily disabling limine-snapper-sync plugin..."
-        sudo mv /usr/lib/snapper/plugins/10-limine-snapper-sync /usr/lib/snapper/plugins/10-limine-snapper-sync.disabled
+        print_info "Temporarily moving limine-snapper-sync plugin..."
+        sudo mv /usr/lib/snapper/plugins/10-limine-snapper-sync /tmp/10-limine-snapper-sync.tmp
     fi
 
     # Remove existing .snapshots directories if they exist
@@ -306,10 +306,10 @@ configure_snapper() {
     sudo snapper -c root create-config /
     sudo snapper -c home create-config /home
 
-    # Re-enable limine-snapper-sync plugin
-    if [ -f /usr/lib/snapper/plugins/10-limine-snapper-sync.disabled ]; then
-        print_info "Re-enabling limine-snapper-sync plugin..."
-        sudo mv /usr/lib/snapper/plugins/10-limine-snapper-sync.disabled /usr/lib/snapper/plugins/10-limine-snapper-sync
+    # Move limine-snapper-sync plugin back
+    if [ -f /tmp/10-limine-snapper-sync.tmp ]; then
+        print_info "Restoring limine-snapper-sync plugin..."
+        sudo mv /tmp/10-limine-snapper-sync.tmp /usr/lib/snapper/plugins/10-limine-snapper-sync
     fi
 
     # Configure root
