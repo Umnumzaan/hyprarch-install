@@ -291,6 +291,16 @@ configure_snapper() {
         sudo mv /usr/lib/snapper/plugins/10-limine-snapper-sync /usr/lib/snapper/plugins/10-limine-snapper-sync.disabled
     fi
 
+    # Remove existing .snapshots directories if they exist
+    if [ -d "/.snapshots" ]; then
+        print_info "Removing existing /.snapshots directory..."
+        sudo rmdir /.snapshots
+    fi
+    if [ -d "/home/.snapshots" ]; then
+        print_info "Removing existing /home/.snapshots directory..."
+        sudo rmdir /home/.snapshots
+    fi
+
     # Create snapper configs
     print_info "Creating snapper configs..."
     sudo snapper -c root create-config /
