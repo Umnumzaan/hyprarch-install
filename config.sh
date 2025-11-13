@@ -239,13 +239,11 @@ install_gpu_drivers() {
     print_success "GPU drivers installed"
 }
 
-# Install Bluetooth GUI
-install_bluetooth_gui() {
-    local bt_gui="$1"
+# Install Bluetooth
+install_bluetooth() {
+    print_step "Installing Bluetooth..."
 
-    print_step "Installing Bluetooth GUI..."
-
-    sudo pacman -S --needed --noconfirm "$bt_gui"
+    sudo pacman -S --needed --noconfirm blueberry
 
     # Enable bluetooth service
     sudo systemctl enable bluetooth.service
@@ -287,10 +285,22 @@ install_aur_packages() {
 configure_snapper() {
     print_step "Configuring snapper..."
 
+    # Temporarily disable limine-snapper-sync plugin
+    if [ -f /usr/lib/snapper/plugins/10-limine-snapper-sync ]; then
+        print_info "Temporarily disabling limine-snapper-sync plugin..."
+        sudo mv /usr/lib/snapper/plugins/10-limine-snapper-sync /usr/lib/snapper/plugins/10-limine-snapper-sync.disabled
+    fi
+
     # Create snapper configs
     print_info "Creating snapper configs..."
-    sudo snapper -c root create-config / 2>/dev/null || true
-    sudo snapper -c home create-config /home 2>/dev/null || true
+    sudo snapper -c root create-config /
+    sudo snapper -c home create-config /home
+
+    # Re-enable limine-snapper-sync plugin
+    if [ -f /usr/lib/snapper/plugins/10-limine-snapper-sync.disabled ]; then
+        print_info "Re-enabling limine-snapper-sync plugin..."
+        sudo mv /usr/lib/snapper/plugins/10-limine-snapper-sync.disabled /usr/lib/snapper/plugins/10-limine-snapper-sync
+    fi
 
     # Configure root
     sudo sed -i 's/^TIMELINE_MIN_AGE=.*/TIMELINE_MIN_AGE="1800"/' /etc/snapper/configs/root
@@ -458,23 +468,10 @@ main() {
         *) print_error "Invalid choice" ;;
     esac
 
-    echo
-    echo -e "${CYAN}Select Bluetooth GUI:${NC}"
-    echo "  1) Blueberry (simpler)"
-    echo "  2) Blueman (more features)"
-    read -r -p "$(echo -e "${CYAN}Enter choice [1-2]:${NC} ")" bt_choice
-
-    case $bt_choice in
-        1) BT_GUI="blueberry" ;;
-        2) BT_GUI="blueman" ;;
-        *) print_error "Invalid choice" ;;
-    esac
-
     # Summary
     echo
     print_step "Configuration Summary:"
     echo -e "  ${CYAN}GPU Type:${NC} $GPU_TYPE"
-    echo -e "  ${CYAN}Bluetooth GUI:${NC} $BT_GUI"
     echo
 
     read -r -p "$(echo -e "${YELLOW}Proceed with configuration? [Y/n]:${NC} ")" confirm
@@ -494,7 +491,7 @@ main() {
     install_providers
     install_official_packages
     install_gpu_drivers "$GPU_TYPE"
-    install_bluetooth_gui "$BT_GUI"
+    install_bluetooth
     install_aur_packages
     configure_snapper
     configure_plymouth
