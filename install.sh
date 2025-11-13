@@ -3,7 +3,7 @@
 # Custom Arch Linux installation with Hyprland, LUKS encryption, Btrfs, and Plymouth
 #
 # This script automates the installation of Arch Linux with:
-# - LUKS2 full disk encryption (systemd-based)
+# - LUKS2 full disk encryption
 # - Btrfs filesystem with 7 subvolumes
 # - Limine bootloader with snapshot support
 # - Hyprland with UWSM session manager
@@ -322,8 +322,8 @@ echo "${USERNAME}:${USER_PASSWORD}" | chpasswd
 # Enable sudo for wheel group
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
-# Configure mkinitcpio with systemd hooks
-sed -i 's/^HOOKS=.*/HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt filesystems fsck)/' /etc/mkinitcpio.conf
+# Configure mkinitcpio with udev-based encryption
+sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt filesystems fsck)/' /etc/mkinitcpio.conf
 
 # Install and configure Limine
 pacman -S --noconfirm limine
@@ -339,7 +339,7 @@ interface_branding_color: 7
     protocol: linux
     kernel_path: boot():/vmlinuz-linux
     module_path: boot():/initramfs-linux.img
-    kernel_cmdline: quiet splash rd.luks.name=${LUKS_UUID}=root root=/dev/mapper/root rootflags=subvol=@ rw rootfstype=btrfs
+    kernel_cmdline: cryptdevice=UUID=${LUKS_UUID}:root root=/dev/mapper/root rootflags=subvol=@ rw rootfstype=btrfs
 EOFLIMINE
 
 # Deploy Limine UEFI files
