@@ -51,11 +51,11 @@ prompt_input() {
     local default="$3"
 
     if [ -n "$default" ]; then
-        read -p "$(echo -e ${CYAN}${prompt}${NC} [${default}]: )" input
-        eval $var_name="${input:-$default}"
+        read -r -p "$(echo -e "${CYAN}${prompt}${NC} [${default}]: ")" input
+        eval "$var_name=\"${input:-$default}\""
     else
-        read -p "$(echo -e ${CYAN}${prompt}${NC}: )" input
-        eval $var_name="$input"
+        read -r -p "$(echo -e "${CYAN}${prompt}${NC}: ")" input
+        eval "$var_name=\"$input\""
     fi
 }
 
@@ -67,13 +67,13 @@ prompt_password() {
     local password_confirm
 
     while true; do
-        read -s -p "$(echo -e ${CYAN}${prompt}${NC}: )" password
+        read -r -s -p "$(echo -e "${CYAN}${prompt}${NC}: ")" password
         echo
-        read -s -p "$(echo -e ${CYAN}Confirm password${NC}: )" password_confirm
+        read -r -s -p "$(echo -e "${CYAN}Confirm password${NC}: ")" password_confirm
         echo
 
         if [ "$password" = "$password_confirm" ]; then
-            eval $var_name="$password"
+            eval "$var_name=\"$password\""
             break
         else
             print_error "Passwords do not match. Please try again."
@@ -128,12 +128,6 @@ partition_disk() {
     local disk="$1"
 
     print_step "Partitioning disk $disk..."
-    print_warning "This will DESTROY all data on $disk!"
-    read -p "$(echo -e ${YELLOW}Are you sure you want to continue? Type 'YES' to confirm:${NC} )" confirm
-
-    if [ "$confirm" != "YES" ]; then
-        print_error "Installation cancelled by user"
-    fi
 
     # Create GPT partition table and partitions
     print_info "Creating partitions..."
@@ -244,20 +238,20 @@ install_base() {
     print_step "Installing base system..."
     print_info "This will take several minutes..."
 
-    local packages="base linux linux-firmware btrfs-progs neovim networkmanager iwd base-devel git"
+    local packages=(base linux linux-firmware btrfs-progs neovim networkmanager iwd base-devel git)
 
     # Add CPU microcode if not VM
     if [ "$cpu_type" = "amd" ]; then
-        packages="$packages amd-ucode"
+        packages+=(amd-ucode)
         print_info "Including AMD microcode"
     elif [ "$cpu_type" = "intel" ]; then
-        packages="$packages intel-ucode"
+        packages+=(intel-ucode)
         print_info "Including Intel microcode"
     else
         print_info "Skipping CPU microcode (VM mode)"
     fi
 
-    pacstrap -K /mnt $packages
+    pacstrap -K /mnt "${packages[@]}"
 
     print_success "Base system installed"
 }
@@ -419,7 +413,7 @@ main() {
     echo "  1) AMD"
     echo "  2) Intel"
     echo "  3) None (VM/Other)"
-    read -p "$(echo -e ${CYAN}Enter choice [1-3]:${NC} )" cpu_choice
+    read -r -p "$(echo -e "${CYAN}Enter choice [1-3]:${NC} ")" cpu_choice
 
     case $cpu_choice in
         1) CPU_TYPE="amd" ;;
@@ -436,11 +430,19 @@ main() {
     echo -e "  ${CYAN}Username:${NC} $USERNAME"
     echo -e "  ${CYAN}CPU Type:${NC} $CPU_TYPE"
     echo
+    print_warning "This will COMPLETELY ERASE all data on $DISK!"
+    print_warning "The disk will be partitioned, encrypted, and formatted."
+    echo
 
-    read -p "$(echo -e ${YELLOW}Proceed with installation? [y/N]:${NC} )" proceed
-    if [[ ! "$proceed" =~ ^[Yy]$ ]]; then
+    read -r -p "$(echo -e "${YELLOW}Type 'YES' (in uppercase) to confirm and begin installation:${NC} ")" final_confirm
+    if [ "$final_confirm" != "YES" ]; then
         print_error "Installation cancelled by user"
     fi
+
+    echo
+    print_info "Starting installation... This will take several minutes."
+    print_info "No further input is required."
+    echo
 
     # Disk setup
     partition_disk "$DISK"
@@ -470,7 +472,7 @@ main() {
     echo
 
     # Prompt for reboot
-    read -p "$(echo -e ${YELLOW}Reboot now? [y/N]:${NC} )" do_reboot
+    read -r -p "$(echo -e "${YELLOW}Reboot now? [y/N]:${NC} ")" do_reboot
 
     if [[ "$do_reboot" =~ ^[Yy]$ ]]; then
         print_info "Unmounting filesystems..."
