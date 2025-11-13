@@ -1,0 +1,1 @@
+# hyprarch-install
