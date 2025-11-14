@@ -18,8 +18,8 @@
 #
 # Usage: bash hyprarch-config.sh
 
-set -e  # Exit on error
-set -o pipefail  # Catch errors in pipes
+set -e          # Exit on error
+set -o pipefail # Catch errors in pipes
 
 # Color codes for output
 RED='\033[0;31m'
@@ -64,7 +64,7 @@ check_not_root() {
 # Check network connection
 check_network() {
     print_step "Checking network connection..."
-    if ping -c 1 archlinux.org &> /dev/null; then
+    if ping -c 1 archlinux.org &>/dev/null; then
         print_success "Network connection established"
         return 0
     else
@@ -80,7 +80,7 @@ check_base_install() {
         print_error "Limine not found. Please run hyprarch-install.sh first."
     fi
 
-    if ! systemctl is-enabled NetworkManager &> /dev/null; then
+    if ! systemctl is-enabled NetworkManager &>/dev/null; then
         print_error "NetworkManager not enabled. Please run hyprarch-install.sh first."
     fi
 
@@ -117,7 +117,7 @@ update_system() {
 install_yay() {
     print_step "Installing yay AUR helper..."
 
-    if command -v yay &> /dev/null; then
+    if command -v yay &>/dev/null; then
         print_success "yay already installed"
         return 0
     fi
@@ -145,7 +145,7 @@ configure_zram() {
     sudo pacman -S --needed --noconfirm zram-generator
 
     # Create config
-    sudo tee /etc/systemd/zram-generator.conf > /dev/null << 'EOF'
+    sudo tee /etc/systemd/zram-generator.conf >/dev/null <<'EOF'
 [zram0]
 zram-size = ram / 4
 compression-algorithm = zstd
@@ -184,6 +184,7 @@ install_official_packages() {
         # Core Wayland/Hyprland
         hyprland uwsm xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
         qt5-wayland qt6-wayland xorg-xwayland hypridle hyprlock hyprpolkitagent
+        waybar
 
         # Screenshots and clipboard
         grim slurp wl-clipboard
@@ -192,10 +193,18 @@ install_official_packages() {
         mako swayosd
 
         # System utilities
-        neovim zoxide fzf bat btop htop
+        neovim zoxide fzf bat btop htop starship
 
         # GUI applications
         nautilus imv evince nwg-look
+
+        # Multimedia codecs and frameworks
+        ffmpeg
+        gst-plugins-base
+        gst-plugins-good
+        gst-plugins-bad
+        gst-plugins-ugly
+        gst-libav
 
         # Bluetooth
         bluez bluez-utils
@@ -219,21 +228,21 @@ install_gpu_drivers() {
     print_step "Installing GPU drivers..."
 
     case $gpu_type in
-        amd)
-            print_info "Installing AMD drivers..."
-            sudo pacman -S --needed --noconfirm mesa vulkan-radeon libva-mesa-driver mesa-vdpau
-            ;;
-        nvidia)
-            print_info "Installing NVIDIA drivers..."
-            sudo pacman -S --needed --noconfirm nvidia nvidia-utils nvidia-settings
-            ;;
-        intel)
-            print_info "Installing Intel drivers..."
-            sudo pacman -S --needed --noconfirm mesa vulkan-intel libva-intel-driver
-            ;;
-        none)
-            print_info "Skipping GPU drivers..."
-            ;;
+    amd)
+        print_info "Installing AMD drivers..."
+        sudo pacman -S --needed --noconfirm mesa vulkan-radeon libva-mesa-driver mesa-vdpau
+        ;;
+    nvidia)
+        print_info "Installing NVIDIA drivers..."
+        sudo pacman -S --needed --noconfirm nvidia nvidia-utils nvidia-settings
+        ;;
+    intel)
+        print_info "Installing Intel drivers..."
+        sudo pacman -S --needed --noconfirm mesa vulkan-intel libva-intel-driver
+        ;;
+    none)
+        print_info "Skipping GPU drivers..."
+        ;;
     esac
 
     print_success "GPU drivers installed"
@@ -274,6 +283,7 @@ install_aur_packages() {
         limine-snapper-sync
         brave-bin
         ghostty
+        mise
     )
 
     yay -S --needed --noconfirm "${packages[@]}"
@@ -373,9 +383,10 @@ create_hyprland_config() {
 
     mkdir -p ~/.config/hypr
 
-    cat > ~/.config/hypr/hyprland.conf << 'EOF'
+    # Create main hyprland.conf
+    cat >~/.config/hypr/hyprland.conf <<'EOF'
 # Minimal HyprArch config - launch terminal on startup and with keybind
-exec-once = ghostty
+source = ~/.config/hypr/autostart.conf
 
 # Keybindings
 bind = SUPER, RETURN, exec, ghostty
@@ -386,9 +397,24 @@ bind = SUPER, M, exit
 input {
     kb_layout = us
 }
+
+# Monitor (default)
+monitor = ,preferred,auto,1
 EOF
 
-    print_success "Hyprland config created"
+    # Create autostart.conf with essential services
+    cat >~/.config/hypr/autostart.conf <<'EOF'
+# Hyprland Autostart Configuration
+# Essential services for Phase 2
+
+# Polkit authentication agent (required for privilege elevation)
+exec-once = hyprpolkitagent
+
+# Terminal on startup
+exec-once = ghostty
+EOF
+
+    print_success "Hyprland config created with autostart"
 }
 
 # Configure auto-login
@@ -399,7 +425,7 @@ configure_autologin() {
     sudo mkdir -p /etc/systemd/system/getty@tty1.service.d/
 
     # Create auto-login override
-    sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf > /dev/null << EOF
+    sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf >/dev/null <<EOF
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noclear --autologin $USER %I \$TERM
@@ -414,7 +440,7 @@ configure_uwsm() {
 
     # Add to .bash_profile
     if ! grep -q "uwsm start hyprland.desktop" ~/.bash_profile 2>/dev/null; then
-        cat >> ~/.bash_profile << 'EOF'
+        cat >>~/.bash_profile <<'EOF'
 
 # Launch Hyprland on TTY1
 if [ -z "$DISPLAY" ] && [ "$XDG_VTNR" = 1 ]; then
@@ -425,6 +451,40 @@ EOF
     else
         print_success "UWSM already configured in .bash_profile"
     fi
+}
+
+# Deploy UWSM configuration files
+deploy_uwsm_config() {
+    print_step "Deploying UWSM configuration..."
+
+    # UWSM config is in uwsm/.config/uwsm/ relative to repo root
+    # SCRIPT_DIR is hyprarch/, so uwsm config is in ../uwsm/.config/uwsm/
+    local uwsm_config_dir="$(dirname "$SCRIPT_DIR")/uwsm/.config/uwsm"
+
+    if [ ! -d "$uwsm_config_dir" ]; then
+        print_warning "UWSM config directory not found: $uwsm_config_dir"
+        print_info "Skipping UWSM config deployment"
+        return 0
+    fi
+
+    # Create UWSM config directory
+    mkdir -p ~/.config/uwsm
+
+    # Deploy default config
+    if [ -f "$uwsm_config_dir/default" ]; then
+        print_info "Deploying UWSM default config..."
+        cp "$uwsm_config_dir/default" ~/.config/uwsm/default
+        print_success "UWSM default config deployed"
+    fi
+
+    # Deploy env config
+    if [ -f "$uwsm_config_dir/env" ]; then
+        print_info "Deploying UWSM env config..."
+        cp "$uwsm_config_dir/env" ~/.config/uwsm/env
+        print_success "UWSM env config deployed"
+    fi
+
+    print_success "UWSM configuration deployed"
 }
 
 # Cleanup script directory
@@ -471,11 +531,11 @@ main() {
     read -r -p "$(echo -e "${CYAN}Enter choice [1-4]:${NC} ")" gpu_choice
 
     case $gpu_choice in
-        1) GPU_TYPE="amd" ;;
-        2) GPU_TYPE="nvidia" ;;
-        3) GPU_TYPE="intel" ;;
-        4) GPU_TYPE="none" ;;
-        *) print_error "Invalid choice" ;;
+    1) GPU_TYPE="amd" ;;
+    2) GPU_TYPE="nvidia" ;;
+    3) GPU_TYPE="intel" ;;
+    4) GPU_TYPE="none" ;;
+    *) print_error "Invalid choice" ;;
     esac
 
     # Summary
@@ -508,6 +568,7 @@ main() {
     create_hyprland_config
     configure_autologin
     configure_uwsm
+    deploy_uwsm_config
 
     # Success message
     echo
