@@ -166,6 +166,27 @@ EOF
     fi
 }
 
+# Enable multilib repository
+enable_multilib() {
+    print_step "Enabling multilib repository..."
+
+    # Check if multilib is already enabled
+    if grep -q "^\[multilib\]" /etc/pacman.conf; then
+        print_info "multilib repository already enabled"
+        return 0
+    fi
+
+    # Enable multilib by uncommenting it in pacman.conf
+    print_info "Uncommenting multilib in /etc/pacman.conf..."
+    sudo sed -i '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' /etc/pacman.conf
+
+    # Update package database
+    print_info "Updating package database..."
+    sudo pacman -Sy
+
+    print_success "multilib repository enabled"
+}
+
 # Install provider dependencies first to avoid prompts
 install_providers() {
     print_step "Installing provider dependencies..."
@@ -195,8 +216,13 @@ install_official_packages() {
         # System utilities
         neovim zoxide fzf bat btop htop starship
 
-        # GUI applications
+        # Security and authentication
+        gnome-keyring
+        python-secretstorage
+
+        # GUI applications and theming
         nautilus imv evince nwg-look
+        gnome-themes-extra
 
         # Multimedia codecs and frameworks
         ffmpeg
@@ -417,6 +443,16 @@ EOF
     print_success "Hyprland config created with autostart"
 }
 
+# Enable gnome-keyring
+enable_gnome_keyring() {
+    print_step "Enabling GNOME Keyring..."
+
+    # Enable the socket (starts automatically when needed)
+    systemctl --user enable gnome-keyring-daemon.socket
+
+    print_success "GNOME Keyring enabled"
+}
+
 # Configure auto-login
 configure_autologin() {
     print_step "Configuring auto-login..."
@@ -557,6 +593,7 @@ main() {
     # Configuration steps
     update_system
     install_yay
+    enable_multilib
     configure_zram
     install_providers
     install_official_packages
@@ -566,6 +603,7 @@ main() {
     configure_snapper
     configure_plymouth
     create_hyprland_config
+    enable_gnome_keyring
     configure_autologin
     configure_uwsm
     deploy_uwsm_config
