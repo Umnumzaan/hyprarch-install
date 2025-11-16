@@ -331,7 +331,7 @@ pacman -S --noconfirm limine
 # Create Limine configuration with Tokyo Night theme
 cat > /boot/limine.conf << EOFLIMINE
 timeout: 3
-default_entry: 1
+default_entry: 0
 interface_branding: HyprArch Bootloader
 interface_branding_color: 2
 
