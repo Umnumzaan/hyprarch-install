@@ -328,18 +328,29 @@ sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect microcode modconf kms keyboard k
 # Install and configure Limine
 pacman -S --noconfirm limine
 
-# Create Limine configuration
+# Create Limine configuration with Tokyo Night theme
 cat > /boot/limine.conf << EOFLIMINE
 timeout: 3
 default_entry: 1
 interface_branding: HyprArch Bootloader
-interface_branding_color: 7
+interface_branding_color: 2
 
-/HyprArch Linux
+# Tokyo Night color scheme
+term_background: 1a1b26
+backdrop: 1a1b26
+term_palette: 15161e;f7768e;9ece6a;e0af68;7aa2f7;bb9af7;7dcfff;a9b1d6
+term_palette_bright: 414868;f7768e;9ece6a;e0af68;7aa2f7;bb9af7;7dcfff;c0caf5
+term_foreground: c0caf5
+term_foreground_bright: c0caf5
+term_background_bright: 24283b
+
+/+HyprArch Linux
+  //linux
+    comment: HyprArch
     protocol: linux
     kernel_path: boot():/vmlinuz-linux
     module_path: boot():/initramfs-linux.img
-    kernel_cmdline: cryptdevice=UUID=${LUKS_UUID}:root root=/dev/mapper/root rootflags=subvol=@ rw rootfstype=btrfs
+    kernel_cmdline: quiet splash cryptdevice=UUID=${LUKS_UUID}:root root=/dev/mapper/root rootflags=subvol=@ rw rootfstype=btrfs
 EOFLIMINE
 
 # Deploy Limine UEFI files

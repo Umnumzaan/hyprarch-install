@@ -191,7 +191,7 @@ enable_multilib() {
 install_providers() {
     print_step "Installing provider dependencies..."
 
-    sudo pacman -S --needed --noconfirm pipewire-jack noto-fonts jre-openjdk
+    sudo pacman -S --needed --noconfirm pipewire pipewire-pulse pipewire-alsa pipewire-jack wireplumber noto-fonts jre-openjdk
 
     print_success "Provider dependencies installed"
 }
@@ -214,7 +214,10 @@ install_official_packages() {
         mako swayosd
 
         # System utilities
-        neovim zoxide fzf bat btop htop starship
+        neovim zoxide fzf bat btop htop starship bash-completion
+
+        # Archive and compression tools
+        xz zstd lz4 libarchive ripgrep fd
 
         # Security and authentication
         gnome-keyring
@@ -234,6 +237,9 @@ install_official_packages() {
 
         # Bluetooth
         bluez bluez-utils
+
+        # Network services
+        openssh
 
         # Snapshots
         snapper snap-pac
@@ -287,6 +293,17 @@ install_bluetooth() {
     print_success "Bluetooth configured"
 }
 
+# Enable SSH server
+enable_ssh() {
+    print_step "Enabling SSH server..."
+
+    # Enable and start SSH service
+    sudo systemctl enable sshd.service
+    sudo systemctl start sshd.service
+
+    print_success "SSH server enabled"
+}
+
 # Install AUR packages
 install_aur_packages() {
     print_step "Installing AUR packages..."
@@ -306,6 +323,7 @@ install_aur_packages() {
         elephant-runner
         elephant-symbols
         elephant-websearch
+        ttf-lilex-nerd
         limine-snapper-sync
         brave-bin
         ghostty
@@ -348,25 +366,58 @@ configure_snapper() {
         sudo mv /tmp/10-limine-snapper-sync.tmp /usr/lib/snapper/plugins/10-limine-snapper-sync
     fi
 
-    # Configure root
+    # Configure root - disable timeline, keep only pacman snapshots (max 10)
     sudo sed -i 's/^TIMELINE_MIN_AGE=.*/TIMELINE_MIN_AGE="1800"/' /etc/snapper/configs/root
-    sudo sed -i 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="5"/' /etc/snapper/configs/root
-    sudo sed -i 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="7"/' /etc/snapper/configs/root
+    sudo sed -i 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="0"/' /etc/snapper/configs/root
+    sudo sed -i 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="0"/' /etc/snapper/configs/root
     sudo sed -i 's/^TIMELINE_LIMIT_WEEKLY=.*/TIMELINE_LIMIT_WEEKLY="0"/' /etc/snapper/configs/root
     sudo sed -i 's/^TIMELINE_LIMIT_MONTHLY=.*/TIMELINE_LIMIT_MONTHLY="0"/' /etc/snapper/configs/root
     sudo sed -i 's/^TIMELINE_LIMIT_YEARLY=.*/TIMELINE_LIMIT_YEARLY="0"/' /etc/snapper/configs/root
+    sudo sed -i 's/^NUMBER_LIMIT=.*/NUMBER_LIMIT="10"/' /etc/snapper/configs/root
+    sudo sed -i 's/^NUMBER_MIN_AGE=.*/NUMBER_MIN_AGE="1800"/' /etc/snapper/configs/root
 
-    # Configure home
+    # Configure home - disable timeline, keep only numbered snapshots (max 10)
     sudo sed -i 's/^TIMELINE_MIN_AGE=.*/TIMELINE_MIN_AGE="1800"/' /etc/snapper/configs/home
-    sudo sed -i 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="5"/' /etc/snapper/configs/home
-    sudo sed -i 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="7"/' /etc/snapper/configs/home
+    sudo sed -i 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="0"/' /etc/snapper/configs/home
+    sudo sed -i 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="0"/' /etc/snapper/configs/home
     sudo sed -i 's/^TIMELINE_LIMIT_WEEKLY=.*/TIMELINE_LIMIT_WEEKLY="0"/' /etc/snapper/configs/home
     sudo sed -i 's/^TIMELINE_LIMIT_MONTHLY=.*/TIMELINE_LIMIT_MONTHLY="0"/' /etc/snapper/configs/home
     sudo sed -i 's/^TIMELINE_LIMIT_YEARLY=.*/TIMELINE_LIMIT_YEARLY="0"/' /etc/snapper/configs/home
+    sudo sed -i 's/^NUMBER_LIMIT=.*/NUMBER_LIMIT="10"/' /etc/snapper/configs/home
+    sudo sed -i 's/^NUMBER_MIN_AGE=.*/NUMBER_MIN_AGE="1800"/' /etc/snapper/configs/home
 
-    # Enable timers
-    sudo systemctl enable --now snapper-timeline.timer
+    # Enable only cleanup timer (not timeline - we only want pacman snapshots)
     sudo systemctl enable --now snapper-cleanup.timer
+
+    # Configure limine-snapper-sync with all required settings
+    print_info "Configuring limine-snapper-sync..."
+    sudo tee /etc/limine-snapper-sync.conf >/dev/null <<'EOF'
+# HyprArch Limine-Snapper-Sync Configuration
+
+# OS Entry Targeting (must match limine.conf entry name)
+TARGET_OS_NAME="HyprArch Linux"
+
+# Max Snapshot Entries
+MAX_SNAPSHOT_ENTRIES=10
+
+# Boot Partition Usage Limit
+LIMIT_USAGE_PERCENT=85
+
+# Snapshot Entry Formatting (format 2: "111 │ 2023-12-20 10:59:59")
+SNAPSHOT_FORMAT_CHOICE=2
+
+# Root Paths
+ROOT_SUBVOLUME_PATH="/@"
+ROOT_SNAPSHOTS_PATH="/@/.snapshots"
+
+# Restore Settings
+ENABLE_RSYNC_ASK=no
+SET_SNAPSHOT_AS_DEFAULT=no
+EOF
+
+    # Run initial sync to populate bootloader with snapshots
+    print_info "Syncing snapshots to bootloader..."
+    sudo limine-snapper-sync || true  # Don't fail if no snapshots exist yet
 
     print_success "Snapper configured"
 }
@@ -451,6 +502,18 @@ enable_gnome_keyring() {
     systemctl --user enable gnome-keyring-daemon.socket
 
     print_success "GNOME Keyring enabled"
+}
+
+# Enable Pipewire audio services
+enable_pipewire() {
+    print_step "Enabling Pipewire audio services..."
+
+    # Enable and start pipewire services
+    systemctl --user enable --now pipewire.service
+    systemctl --user enable --now pipewire-pulse.service
+    systemctl --user enable --now wireplumber.service
+
+    print_success "Pipewire audio services enabled"
 }
 
 # Configure auto-login
@@ -604,6 +667,8 @@ main() {
     configure_plymouth
     create_hyprland_config
     enable_gnome_keyring
+    enable_pipewire
+    enable_ssh
     configure_autologin
     configure_uwsm
     deploy_uwsm_config
